@@ -27,14 +27,14 @@ void loop() {
     IMU.readAcceleration(x, y, z);
 
     // Calculate tilt in degrees
-    degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
-    degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
+    // degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
+    // degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
 
-    xangle = x * 180 / PI;
-    yangle = y * 180 / PI;
-    zangle = z * 180/ PI;
+    // xangle = x * 180 / PI;
+    // yangle = y * 180 / PI;
+    // zangle = z * 180/ PI;
 
-    theta = atan2(x,z) * 180 / PI;
+    theta = atan2(y,z) * 180 / PI;
 
     // if (abs(xangle) < 10 && abs(zangle) < 10 && abs(zangle) > 0.01) {
     //     theta2 = xangle / zangle;
