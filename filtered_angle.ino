@@ -37,15 +37,9 @@ void loop() {
   if (IMU.accelerationAvailable()) {
     IMU.readAcceleration(x, y, z);
 
-    // Calculate tilt in degrees
-    degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
-    degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
+   
 
-    xangle = x * 180 / PI;
-    yangle = y * 180 / PI;
-    zangle = z * 180/ PI;
-
-    acc_ang = atan2(x,z) * 180 / PI;
+    acc_ang = atan2(y,z) * 180 / PI;
   }
 
   filtered_ang = 0.99*(filtered_ang + gyro_ang) + 0.01*acc_ang;
