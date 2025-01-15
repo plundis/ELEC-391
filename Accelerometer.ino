@@ -2,8 +2,10 @@
 #include <math.h>  // Include for atan2()
 
 float x, y, z;
+float xangle, yangle, zangle;
 float degreesX = 0;
 float degreesY = 0;
+float theta, theta2;
 
 void setup() {
   Serial.begin(9600);
@@ -28,14 +30,31 @@ void loop() {
     degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
     degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
 
-    theta = atan2()
+    xangle = x * 180 / PI;
+    yangle = y * 180 / PI;
+    zangle = z * 180/ PI;
+
+    theta = atan2(x,z) * 180 / PI;
+
+    // if (abs(xangle) < 10 && abs(zangle) < 10 && abs(zangle) > 0.01) {
+    //     theta2 = xangle / zangle;
+    // } else {
+    //     theta2 = atan2(xangle, zangle);
+    // }
+
 
     // Print tilt angles
-    Serial.print("X Tilt: ");
-    Serial.print(degreesX);
-    Serial.print("°, Y Tilt: ");
-    Serial.print(degreesY);
-    Serial.println("°");
+    // Serial.print("X Tilt: ");
+    // Serial.print(x);
+    // Serial.print("°, Y Tilt: ");
+    // Serial.print(degreesY);
+    // Serial.println("°");
+   // Serial.print("theta: ");
+Serial.println(theta);
+
+    //Serial.println("°, theta2: ");
+    // Serial.print(theta2);
+    // Serial.println("°");
   }
 
   delay(100);  // Adjust sample rate
