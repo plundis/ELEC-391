@@ -1,0 +1,42 @@
+#include "Arduino_BMI270_BMM150.h"
+#include <math.h>  // Include for atan2()
+
+float x, y, z;
+float degreesX = 0;
+float degreesY = 0;
+
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
+  Serial.println("Started");
+
+  if (!IMU.begin()) {
+    Serial.println("Failed to initialize IMU!");
+    while (1);
+  }
+
+  Serial.print("Accelerometer sample rate = ");
+  Serial.print(IMU.accelerationSampleRate());
+  Serial.println(" Hz");
+}
+
+void loop() {
+  if (IMU.accelerationAvailable()) {
+    IMU.readAcceleration(x, y, z);
+
+    // Calculate tilt in degrees
+    degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
+    degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
+
+    theta = atan2()
+
+    // Print tilt angles
+    Serial.print("X Tilt: ");
+    Serial.print(degreesX);
+    Serial.print("°, Y Tilt: ");
+    Serial.print(degreesY);
+    Serial.println("°");
+  }
+
+  delay(100);  // Adjust sample rate
+}
