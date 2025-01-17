@@ -1,61 +1,71 @@
-#include "Arduino_BMI270_BMM150.h"
-#include <math.h>  // Include for atan2()
+import serial
+import matplotlib.pyplot as plt
+import numpy as np
 
-float x, y, z;
-float xangle, yangle, zangle;
-float degreesX = 0;
-float degreesY = 0;
-float theta, theta2;
+# Set up serial connection
+port = 'COM5'  # Update this to the correct port for your Arduino
+baud_rate = 9600
+ser = serial.Serial(port, baud_rate, timeout=1)
 
-void setup() {
-  Serial.begin(9600);
-  while (!Serial);
-  Serial.println("Started");
+# Prepare lists to store accelerometer angle data
+acc_angles = []
+time = []
 
-  if (!IMU.begin()) {
-    Serial.println("Failed to initialize IMU!");
-    while (1);
-  }
+# Set up the plot
+plt.ion()
+fig, ax = plt.subplots()
 
-  Serial.print("Accelerometer sample rate = ");
-  Serial.print(IMU.accelerationSampleRate());
-  Serial.println(" Hz");
-}
+# Set plot labels and title
+ax.set_xlabel('Time (s)')
+ax.set_ylabel('Angle (°)')
+ax.set_title('Gyroscope Angle')
 
-void loop() {
-  if (IMU.accelerationAvailable()) {
-    IMU.readAcceleration(x, y, z);
+# Initialize time counter
+start_time = np.datetime64('now')
 
-    // Calculate tilt in degrees
-    // degreesX = atan2(x, sqrt(y * y + z * z)) * 180 / PI;
-    // degreesY = atan2(y, sqrt(x * x + z * z)) * 180 / PI;
+# Plot line for accelerometer angle
+line_acc, = ax.plot([], [], label='Gyroscope Angle', color='g')
 
-    // xangle = x * 180 / PI;
-    // yangle = y * 180 / PI;
-    // zangle = z * 180/ PI;
+# Add legend to the plot (initially with placeholders)
+legend = ax.legend()
 
-    theta = atan2(y,z) * 180 / PI;
+# Continuously read data from the Arduino and plot
+iteration = 0  # To control the update frequency
+while True:
+    try:
+        # Read data from Arduino (expects the format as mentioned)
+        line = ser.readline().decode('utf-8').strip()
+        
+        if line.startswith("Gyroscope angle:"):
+            # Extract the accelerometer angle from the data string
+            acc_ang = float(line.split(":")[1].strip().replace("°", ""))
+            
+            # Append the data to the list
+            acc_angles.append(acc_ang)
+            
+            # Get the current time and convert to seconds
+            current_time = np.datetime64('now')
+            elapsed_time = (current_time - start_time) / np.timedelta64(1, 's')
+            time.append(elapsed_time)
+            
+            # Update the plot at a controlled frequency (e.g., every 10 iterations)
+            if iteration % 10 == 0:
+                line_acc.set_data(time, acc_angles)
+                
+                # Update the legend with the current accelerometer angle value
+                legend_text = [f'Gyroscope Angle: {acc_ang:.2f}°']
+                for i, text in enumerate(legend.get_texts()):
+                    text.set_text(legend_text[i])
+                
+                # Redraw only the updated data
+                ax.relim()  # Recalculate limits
+                ax.autoscale_view()  # Rescale the view
+                plt.pause(0.01)  # Small pause to allow the plot to update
 
-    // if (abs(xangle) < 10 && abs(zangle) < 10 && abs(zangle) > 0.01) {
-    //     theta2 = xangle / zangle;
-    // } else {
-    //     theta2 = atan2(xangle, zangle);
-    // }
+            iteration += 1
 
+    except KeyboardInterrupt:
+        break
 
-    // Print tilt angles
-    // Serial.print("X Tilt: ");
-    // Serial.print(x);
-    // Serial.print("°, Y Tilt: ");
-    // Serial.print(degreesY);
-    // Serial.println("°");
-   // Serial.print("theta: ");
-Serial.println(theta);
-
-    //Serial.println("°, theta2: ");
-    // Serial.print(theta2);
-    // Serial.println("°");
-  }
-
-  delay(100);  // Adjust sample rate
-}
+# Close the serial connection
+ser.close()
