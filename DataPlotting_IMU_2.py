@@ -39,19 +39,18 @@ def updatePlot(frame):
             accel_angle_data.append(accel_angle)
             gyro_angle_data.append(gyro_angle)
 
-            # Limit the number of points displayed
-            if len(time_data) > 100:
-                time_data.pop(0)
-                filtered_angle_data.pop(0)
-                accel_angle_data.pop(0)
-                gyro_angle_data.pop(0)
+            # Limit the number of points displayed using slicing
+            time_data = time_data[-50:]
+            filtered_angle_data = filtered_angle_data[-50:]
+            accel_angle_data = accel_angle_data[-50:]
+            gyro_angle_data = gyro_angle_data[-50:]
 
             # Clear and update first subplot (Filtered Angle)
             ax1.clear()
             ax1.plot(time_data, filtered_angle_data, label="Filtered Angle (°)", color='green')
             ax1.set_title("Filtered Angle")
             ax1.set_ylabel("Angle (°)")
-            ax1.set_ylim([-180, 180])
+            ax1.set_ylim([-90, 90])
             ax1.legend(loc="upper right")
             ax1.grid(True)
 
@@ -60,7 +59,7 @@ def updatePlot(frame):
             ax2.plot(time_data, accel_angle_data, label="Accelerometer Angle (°)", color='blue')
             ax2.set_title("Accelerometer Angle")
             ax2.set_ylabel("Angle (°)")
-            ax2.set_ylim([-180, 180])
+            ax2.set_ylim([-90, 90])
             ax2.legend(loc="upper right")
             ax2.grid(True)
 
@@ -70,7 +69,7 @@ def updatePlot(frame):
             ax3.set_title("Gyroscope Angle")
             ax3.set_xlabel("Time (samples)")
             ax3.set_ylabel("Angle (°)")
-            ax3.set_ylim([-180, 180])
+            ax3.set_ylim([-90, 90])
             ax3.legend(loc="upper right")
             ax3.grid(True)
 
