@@ -27,6 +27,7 @@ void loop() {
 
   angle = angle + x*delta_time/1000;
 
+  Serial.print("Gyroscope angle: ");
   Serial.println(angle);
   delay(delta_time/1000);
   }
