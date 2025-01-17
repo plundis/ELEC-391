@@ -13,10 +13,12 @@ fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 8), sharex=True)
 plt.subplots_adjust(hspace=0.5)
 
 # Data storage
-time_data = []
+time_data = []  # Continuous time axis
 filtered_angle_data = []
 accel_angle_data = []
 gyro_angle_data = []
+
+max_points = 50  # Maximum number of points to display
 
 def updatePlot(frame):
     global time_data, filtered_angle_data, accel_angle_data, gyro_angle_data
@@ -33,24 +35,30 @@ def updatePlot(frame):
             accel_angle = float(parts[1].split(":")[1].strip())
             gyro_angle = float(parts[2].split(":")[1].strip())
 
-            # Append data
-            time_data.append(len(time_data))
+            # Update time and angle data
+            if time_data:
+                time_data.append(time_data[-1] + 1)  # Increment time by 1
+            else:
+                time_data.append(0)  # Initialize time data
+
             filtered_angle_data.append(filtered_angle)
             accel_angle_data.append(accel_angle)
             gyro_angle_data.append(gyro_angle)
 
-            # Limit the number of points displayed using slicing
-            time_data = time_data[-50:]
-            filtered_angle_data = filtered_angle_data[-50:]
-            accel_angle_data = accel_angle_data[-50:]
-            gyro_angle_data = gyro_angle_data[-50:]
+            # Limit the number of points displayed for angles
+            filtered_angle_data = filtered_angle_data[-max_points:]
+            accel_angle_data = accel_angle_data[-max_points:]
+            gyro_angle_data = gyro_angle_data[-max_points:]
+
+            # Limit time_data to match the length of angle data
+            time_data = time_data[-max_points:]
 
             # Clear and update first subplot (Filtered Angle)
             ax1.clear()
             ax1.plot(time_data, filtered_angle_data, label="Filtered Angle (°)", color='green')
             ax1.set_title("Filtered Angle")
             ax1.set_ylabel("Angle (°)")
-            ax1.set_ylim([-90, 90])
+            ax1.set_ylim([-180, 180])
             ax1.legend(loc="upper right")
             ax1.grid(True)
 
@@ -59,7 +67,7 @@ def updatePlot(frame):
             ax2.plot(time_data, accel_angle_data, label="Accelerometer Angle (°)", color='blue')
             ax2.set_title("Accelerometer Angle")
             ax2.set_ylabel("Angle (°)")
-            ax2.set_ylim([-90, 90])
+            ax2.set_ylim([-180, 180])
             ax2.legend(loc="upper right")
             ax2.grid(True)
 
@@ -69,7 +77,7 @@ def updatePlot(frame):
             ax3.set_title("Gyroscope Angle")
             ax3.set_xlabel("Time (samples)")
             ax3.set_ylabel("Angle (°)")
-            ax3.set_ylim([-90, 90])
+            ax3.set_ylim([-180, 180])
             ax3.legend(loc="upper right")
             ax3.grid(True)
 
