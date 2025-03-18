@@ -24,6 +24,8 @@ float prevError = 0.0;
 float currentTime;
 float prevTime = 0.0;
 float outputPID;
+float gyro_bias = 0.0;
+float x, y, z;
 
 // Complementary Filter Parameters
 float filteredAngle = 0.0;
@@ -85,7 +87,7 @@ void loop() {
 
   // ===== PID Control =====
   error = desiredAngle - filteredAngle;
-  proportional = Kp * error;
+  proportional = error;
   integral += error * dt;
   derivative = (error - prevError) / dt;
 
@@ -94,7 +96,7 @@ void loop() {
   outputPID = (Kp * proportional) + (Ki * integral) + (Kd * derivative); 
 
   // ===== Set Motor Speeds =====
-  int pwm = constrain(abs(pidOutput), 0, 255);
+  int pwm = constrain(abs(outputPID), 0, 255);
 
   if (outputPID > 0) {
     driveMotorsFD(pwm, pwm);   // Move forward to balance forward tilt
@@ -105,8 +107,8 @@ void loop() {
 
   
   // Debugging
-  Serial.print("Angle: "); Serial.print(angle);
-  Serial.print(" | Output: "); Serial.println(output);
+  Serial.print("Angle: "); Serial.print(filteredAngle);
+  Serial.print(" | Output: "); Serial.println(outputPID);
   
   delay(10);  // Small delay to stabilize loop
 }
