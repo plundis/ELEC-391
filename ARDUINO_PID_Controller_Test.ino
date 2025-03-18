@@ -11,9 +11,9 @@ const int Bin2 = 4;  // Bin2 on DRV8833 goes to D4 on arduino
 const int Bin1 = 5;  // Bin1 on DRV8833 goes to D5 on arduino
 
 // PID Gains (Tune These)
-float Kp = 15.0;  
-float Ki = 0.5;
-float Kd = 2.0;
+float Kp = 1.0;  
+float Ki = 4.0;
+float Kd = 0.01;
 
 float desiredAngle = 0.0;  // Desired tilt angle (balance point)
 float proportional;
