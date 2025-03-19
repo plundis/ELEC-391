@@ -19,16 +19,17 @@ float desiredAngle = 0.0;  // Desired tilt angle (balance point)
 float proportional;
 float integral = 0.0;
 float derivative;
-float error;
+float PIDerror;
 float prevError = 0.0;
 float currentTime;
 float prevTime = 0.0;
 float outputPID;
 float gyro_bias = 0.0;
 float x, y, z;
+float accelAngle, gyroChange, gyroAngle, gx;
 
 // Complementary Filter Parameters
-float filteredAngle = 0.0;
+float filteredAngle;
 float Kw = 0.95;  // Complementary filter weight
 
 void setup() {
@@ -48,7 +49,7 @@ void setup() {
   pinMode(Bin2, OUTPUT);
   pinMode(Bin1, OUTPUT);
 
-  // Optional: Calculate gyroscope bias over time to subtract it from the readings
+  /*// Optional: Calculate gyroscope bias over time to subtract it from the readings
   for (int i = 0; i < 1000; i++) {
     if (IMU.gyroscopeAvailable()) {
       IMU.readGyroscope(x, y, z);
@@ -56,7 +57,7 @@ void setup() {
       delay(10);        // Wait to gather enough samples
     }
   }
-  gyro_bias /= 1000.0;  // Average the bias value
+  gyro_bias /= 1000.0;  // Average the bias value*/
 }
 
 void loop() {
@@ -77,7 +78,7 @@ void loop() {
   prevTime = currentTime;
 
   // ===== Calculate Tilt Angle =====
-  gx -= gyroBias;
+  //gx -= gyro_bias;
   gyroChange = gx * dt;
   gyroAngle = gyroAngle + gyroChange;
 
@@ -86,17 +87,17 @@ void loop() {
   filteredAngle = Kw * (filteredAngle + gyroChange) + (1 - Kw) * accelAngle;
 
   // ===== PID Control =====
-  error = desiredAngle - filteredAngle;
-  proportional = error;
-  integral += error * dt;
-  derivative = (error - prevError) / dt;
+  PIDerror = desiredAngle - filteredAngle;
+  proportional = PIDerror;
+  integral += PIDerror * dt;
+  derivative = (PIDerror - prevError) / dt;
 
-  prevError = error;
+  prevError = PIDerror;
 
   outputPID = (Kp * proportional) + (Ki * integral) + (Kd * derivative); 
 
   // ===== Set Motor Speeds =====
-  int pwm = constrain(abs(outputPID), 0, 255);
+  int pwm = constrain(abs(outputPID), 30, 255);
 
   if (outputPID > 0) {
     driveMotorsFD(pwm, pwm);   // Move forward to balance forward tilt
