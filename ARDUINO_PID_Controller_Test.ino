@@ -90,6 +90,15 @@ void loop() {
   PIDerror = desiredAngle - filteredAngle;
   proportional = PIDerror;
   integral += PIDerror * dt;
+  
+  float integralLimit = 20.0;  // Adjust this experimentally
+  if (integral > integralLimit) {
+    integral = integralLimit;
+  }
+  if (integral < -integralLimit) {
+    integral = -integralLimit;
+  }
+
   derivative = (PIDerror - prevError) / dt;
 
   prevError = PIDerror;
