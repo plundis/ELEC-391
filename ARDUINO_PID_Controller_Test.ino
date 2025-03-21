@@ -1,165 +1,175 @@
 #include "Arduino_BMI270_BMM150.h"
-#include <math.h>  // Include for atan2()
+#include <math.h>
 #include <Arduino.h>
 
 // Motor Driver Pins
-// LEFT MOTOR
-const int Ain1 = 2;  // Ain1 on DRV8833 goes to D2 on Arduino
-const int Ain2 = 3;  // Ain2 on DRV8833 goes to D3 on Arduino
-// RIGHT MOTOR
-const int Bin2 = 4;  // Bin2 on DRV8833 goes to D4 on arduino
-const int Bin1 = 5;  // Bin1 on DRV8833 goes to D5 on arduino
+const int Ain1 = 2;  
+const int Ain2 = 3;  
+const int Bin2 = 4;  
+const int Bin1 = 5;  
 
 // PID Gains (Tune These)
-float Kp = 1.0;  
-float Ki = 4.0;
-float Kd = 0.01;
+float Kp = 2.0;  
+float Ki = 0.0;  
+float Kd = 0.0;  
 
-float desiredAngle = 0.0;  // Desired tilt angle (balance point)
+// PID Parameters
+float desiredAngle = 0.0;  // Target balance angle
 float proportional;
 float integral = 0.0;
 float derivative;
-float PIDerror;
+float currentError;
 float prevError = 0.0;
-float currentTime;
-float prevTime = 0.0;
-float outputPID;
-float gyro_bias = 0.0;
-float x, y, z;
-float accelAngle, gyroChange, gyroAngle, gx;
+float dt;
+unsigned long currentTime;
+unsigned long prevTime = 0;
+float PIDoutput;
+float pwm;
+float dutyCycle;
 
 // Complementary Filter Parameters
+float Kw = 0.96;  // Complementary filter weight
 float filteredAngle;
-float Kw = 0.95;  // Complementary filter weight
+float accelAngle = 0.0;
+float gyroAngle = 0.0;
+float gyroChange;
+float gyroBias = 0.0;
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
   Serial.println("Started");
-  
+
   // Initialize IMU
   if (!IMU.begin()) {
     Serial.println("Failed to initialize IMU!");
     while (1);
   }
-  
+
+  // Gyroscope calibration (bias removal)
+  float x, y, z;
+  int samples = 0;          // Initialize samples counter properly
+  while (samples < 1000) {
+    if (IMU.gyroscopeAvailable()) {
+      IMU.readGyroscope(x, y, z);
+      gyroBias += x;
+      samples++;
+    }
+    delay(2);
+  }
+  gyroBias /= samples;
+
   // Set motor pins as outputs
   pinMode(Ain1, OUTPUT);
   pinMode(Ain2, OUTPUT);
-  pinMode(Bin2, OUTPUT);
   pinMode(Bin1, OUTPUT);
+  pinMode(Bin2, OUTPUT);
 
-  /*// Optional: Calculate gyroscope bias over time to subtract it from the readings
-  for (int i = 0; i < 1000; i++) {
-    if (IMU.gyroscopeAvailable()) {
-      IMU.readGyroscope(x, y, z);
-      gyro_bias += x;   // Accumulate the x-axis gyroscope values
-      delay(10);        // Wait to gather enough samples
-    }
-  }
-  gyro_bias /= 1000.0;  // Average the bias value*/
+  prevTime = micros();
 }
 
 void loop() {
-  static float prevTime = millis() / 1000.0;  // Store time in seconds
-  
-  // ===== Read IMU Data =====
+  currentTime = micros();
+  dt = (currentTime - prevTime) / 1E6;  // Time step in seconds
+  prevTime = currentTime;
+
+  // IMU Data
   float ax, ay, az, gx, gy, gz;
   if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
     IMU.readAcceleration(ax, ay, az);
     IMU.readGyroscope(gx, gy, gz);
   } else {
-    return;  // IMU data is not available
+    Serial.println("IMU error");
+    delay(100);
+    return;
   }
 
-  // ===== Time Calculations =====
-  float currentTime = millis() / 1000.0;  // Time in seconds
-  float dt = currentTime - prevTime;
-  prevTime = currentTime;
-
-  // ===== Calculate Tilt Angle =====
-  //gx -= gyro_bias;
+  // Tilt Calculation
+  gx -= gyroBias;
   gyroChange = gx * dt;
-  gyroAngle = gyroAngle + gyroChange;
+  gyroAngle += gyroChange;
 
-  accelAngle = -atan2(ay, az) * (180 / PI);
-
+  accelAngle = -atan2(ay, az) * (180.0 / PI);
   filteredAngle = Kw * (filteredAngle + gyroChange) + (1 - Kw) * accelAngle;
 
-  // ===== PID Control =====
-  PIDerror = desiredAngle - filteredAngle;
-  proportional = PIDerror;
-  integral += PIDerror * dt;
-  
-  float integralLimit = 20.0;  // Adjust this experimentally
-  if (integral > integralLimit) {
-    integral = integralLimit;
+  // PID Control
+  currentError = desiredAngle - filteredAngle;
+
+  proportional = Kp * currentError;
+  integral += currentError * dt;
+
+  // Anti-windup protection
+  integral = constrain(integral, -50.0, 50.0);
+
+  derivative = (currentError - prevError) / dt;
+  prevError = currentError;
+
+  PIDoutput = proportional + (Ki * integral) + (Kd * derivative);
+
+  // ✅ Fixed Dead Zone Logic
+  const float deadZone = 0.5;  // ±1° dead zone
+
+  if (abs(currentError) < deadZone) {  
+    pwm = 0;  // No movement near balance point
+    driveMotorsSD(0, 0);
+
+  } else {
+    pwm = constrain(abs(PIDoutput), 70, 255);
+
+    // Drive forward/backward based on error direction
+    if (PIDoutput > 0) {
+      driveMotorsSD(pwm, pwm);   // Forward
+    } else {
+      driveMotorsSD(-pwm, -pwm);  // Backward
+    }
   }
-  if (integral < -integralLimit) {
-    integral = -integralLimit;
-  }
 
-  derivative = (PIDerror - prevError) / dt;
+  dutyCycle = (pwm / 255.0) * 100;
 
-  prevError = PIDerror;
-
-  outputPID = (Kp * proportional) + (Ki * integral) + (Kd * derivative); 
-
-  // ===== Set Motor Speeds =====
-  int pwm = constrain(abs(outputPID), 30, 255);
-
-  if (outputPID > 0) {
-    driveMotorsFD(pwm, pwm);   // Move forward to balance forward tilt
-  } 
-  else {
-    driveMotorsFD(-pwm, -pwm); // Move backward to balance backward tilt
-  }
-
-  
   // Debugging
   Serial.print("Angle: "); Serial.print(filteredAngle);
-  Serial.print(" | Output: "); Serial.println(outputPID);
-  
-  delay(10);  // Small delay to stabilize loop
+  Serial.print(", PID: "); Serial.print(PIDoutput);
+  Serial.print(", PWM: "); Serial.println(pwm);
+
+  delay(5);
 }
 
-// === Motor Control Functions ===
-// Fast Decay PWM
-void driveMotorsFD(int speed1, int speed2) {
-  // Motor 1 (Left)
-  if (speed1 > 0) {   // Drive forward
-    analogWrite(Ain1, speed1);
+// ===== FAST DECAY PWM =====
+void driveMotorsFD(int speedL, int speedR) {
+  // Left Motor
+  if (speedL > 0) {   // Forward (Fast Decay)
+    analogWrite(Ain1, speedL);  
     analogWrite(Ain2, 0);
-  } else {            // Drive backward
+  } else {            // Reverse (Fast Decay)
     analogWrite(Ain1, 0);
-    analogWrite(Ain2, abs(speed1));
+    analogWrite(Ain2, abs(speedL));
   }
-  // Motor 2 (Right)
-  if (speed2 > 0) {   // Drive forward
-    analogWrite(Bin1, speed2);
+  // Right Motor
+  if (speedR > 0) {   // Forward (Fast Decay)
+    analogWrite(Bin1, speedR);  
     analogWrite(Bin2, 0);
-  } else {            // Drive backward
+  } else {            // Reverse (Fast Decay)
     analogWrite(Bin1, 0);
-    analogWrite(Bin2, abs(speed2));
+    analogWrite(Bin2, abs(speedR));
   }
 }
 
-// Slow Decay PWM ()
-void driveMotorsSD(int speed1, int speed2) {
-  // Motor 1 (Left)
-  if (speed1 > 0) {   // Drive forward
-    analogWrite(Ain1, 1);
-    analogWrite(Ain2, speed1);
-  } else {            // Drive backward
-    analogWrite(Ain1, abs(speed1));
+// ===== SLOW DECAY PWM =====
+void driveMotorsSD(int speedL, int speedR) {
+  // Left Motor
+  if (speedL > 0) {   // Forward (Slow Decay)
+    analogWrite(Ain1, 1);  
+    analogWrite(Ain2, speedL);
+  } else {            // Reverse (Slow Decay)
+    analogWrite(Ain1, abs(speedL));
     analogWrite(Ain2, 1);
   }
-  // Motor 2 (Right)
-  if (speed2 > 0) {   // Drive forward
-    analogWrite(Bin1, 1);
-    analogWrite(Bin2, speed2);
-  } else {            // Drive backward
-    analogWrite(Bin1, abs(speed2));
+  // Right Motor
+  if (speedR > 0) {   // Forward (Slow Decay)
+    analogWrite(Bin1, 1);  
+    analogWrite(Bin2, speedR);
+  } else {            // Reverse (Slow Decay)
+    analogWrite(Bin1, abs(speedR));
     analogWrite(Bin2, 1);
   }
 }
