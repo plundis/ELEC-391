@@ -9,15 +9,16 @@ const int Bin2 = 4;
 const int Bin1 = 5;  
 
 // PID Gains (Tune These)
-float Kp = 2.0;  
-float Ki = 0.0;  
-float Kd = 0.0;  
+float Kp = 3.0;  //18
+float Ki = 5.0;  //100
+float Kd = 0.2;  //0.8
 
 // PID Parameters
 float desiredAngle = 0.0;  // Target balance angle
 float proportional;
 float integral = 0.0;
 float derivative;
+float lastDerivative = 0.0;
 float currentError;
 float prevError = 0.0;
 float dt;
@@ -28,7 +29,7 @@ float pwm;
 float dutyCycle;
 
 // Complementary Filter Parameters
-float Kw = 0.96;  // Complementary filter weight
+float Kw = 0.99;  // Complementary filter weight
 float filteredAngle;
 float accelAngle = 0.0;
 float gyroAngle = 0.0;
@@ -55,7 +56,7 @@ void setup() {
       gyroBias += x;
       samples++;
     }
-    delay(2);
+    //delay(2);
   }
   gyroBias /= samples;
 
@@ -101,37 +102,42 @@ void loop() {
   // Anti-windup protection
   integral = constrain(integral, -50.0, 50.0);
 
+  //derivative = (currentError - prevError) / dt;
+  //prevError = currentError;
+
   derivative = (currentError - prevError) / dt;
+  derivative = 0.8 * derivative + 0.2 * lastDerivative; // Low-pass filter
+  lastDerivative = derivative;
   prevError = currentError;
 
   PIDoutput = proportional + (Ki * integral) + (Kd * derivative);
 
-  // ✅ Fixed Dead Zone Logic
-  const float deadZone = 0.5;  // ±1° dead zone
+  // Dead Zone Logic
+  const float deadZone = 1.0;  // ±1° dead zone
 
   if (abs(currentError) < deadZone) {  
     pwm = 0;  // No movement near balance point
     driveMotorsSD(0, 0);
 
   } else {
-    pwm = constrain(abs(PIDoutput), 70, 255);
+    pwm = 255 - abs(PIDoutput);
 
     // Drive forward/backward based on error direction
-    if (PIDoutput > 0) {
+    if (PIDoutput < 0) {
       driveMotorsSD(pwm, pwm);   // Forward
     } else {
       driveMotorsSD(-pwm, -pwm);  // Backward
     }
   }
 
-  dutyCycle = (pwm / 255.0) * 100;
-
   // Debugging
-  Serial.print("Angle: "); Serial.print(filteredAngle);
-  Serial.print(", PID: "); Serial.print(PIDoutput);
-  Serial.print(", PWM: "); Serial.println(pwm);
+  Serial.print("Accel: "); Serial.print(accelAngle);
+  Serial.print(" | Gyro: "); Serial.print(gyroAngle);
+  Serial.print(" | Angle: "); Serial.print(filteredAngle);
+  Serial.print(" | PID: "); Serial.print(PIDoutput);
+  Serial.print(" | PWM: "); Serial.println(pwm);
 
-  delay(5);
+  //delay(5);
 }
 
 // ===== FAST DECAY PWM =====
