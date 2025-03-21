@@ -4,14 +4,15 @@
 
 // Motor Driver Pins
 const int Ain1 = 2;  
+
 const int Ain2 = 3;  
 const int Bin2 = 4;  
 const int Bin1 = 5;  
 
 // PID Gains (Tune These)
-float Kp = 3.0;  //18
-float Ki = 5.0;  //100
-float Kd = 0.2;  //0.8
+float Kp = 6.2;  //18
+float Ki = 30.0;  //100 this should probably be slightly less than 30, 25<Ki<30
+float Kd = 0.3;  //0.8
 
 // PID Parameters
 float desiredAngle = 0.0;  // Target balance angle
@@ -120,12 +121,14 @@ void loop() {
     driveMotorsSD(0, 0);
 
   } else {
-    pwm = 255 - abs(PIDoutput);
+    //pwm = 255 - abs(PIDoutput);
 
     // Drive forward/backward based on error direction
     if (PIDoutput < 0) {
+      pwm = constrain(abs(PIDoutput - 50), 0, 255);
       driveMotorsSD(pwm, pwm);   // Forward
     } else {
+      pwm = constrain(PIDoutput + 50, 0, 255);
       driveMotorsSD(-pwm, -pwm);  // Backward
     }
   }
