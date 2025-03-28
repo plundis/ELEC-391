@@ -3,234 +3,153 @@
 #include <Arduino.h>
 
 // Motor Driver Pins
-const int Ain1 = 2;  
-const int Ain2 = 3;  
-const int Bin2 = 4;  
-const int Bin1 = 5;  
+const int Ain1 = 2;
+const int Ain2 = 3;
+const int Bin2 = 4;
+const int Bin1 = 5;
 
-// PID Gains (Tune These)
-float Kp = 6.2;  //18
-float Ki = 29.2;  //100 
-float Kd = 0.33;  //0.8
-
-// PID Parameters
-float desiredAngle = -0.2;  // Target balance angle
-float proportional;
-float integral = 0.0;
-float derivative;
-float lastDerivative = 0.0;
-float currentError;
-float prevError = 0.0;
-float dt;
-unsigned long currentTime;
-unsigned long prevTime = 0;
-float PIDoutput;
-float pwm;
-float dutyCycle;
-
-// Complementary Filter Parameters
-float Kw = 0.99;  // Complementary filter weight
-float filteredAngle;
-float accelAngle = 0.0;
-float gyroAngle = 0.0;
-float gyroChange;
-float gyroBias = 0.0;
-
+// Ultrasonic Sensor Pins
 const int trigPin1 = 9;
 const int echoPin1 = 10;
 const int trigPin2 = 8;
 const int echoPin2 = 7;
 const int speakerPin = 13;
 
-const int moduleFrequency = 1000; // Frequency of the beep
-float duration1, distance1;
-float duration2, distance2;
+// PID Gains
+float Kp = 6.2;
+float Ki = 29.2;
+float Kd = 0.33;
+
+// PID Parameters
+float desiredAngle = -0.2;
+float integral = 0.0;
+float lastDerivative = 0.0;
+float prevError = 0.0;
+unsigned long prevTime = 0;
+
+// Complementary Filter Parameters
+float Kw = 0.99;
+float filteredAngle;
+float gyroAngle = 0.0;
+float gyroBias = 0.0;
+
+// Sonar Parameters
+const int moduleFrequency = 1000;
 unsigned long previousBeepTime = 0;
-int beepInterval = 500; // Default beep interval
+int beepInterval = 500;
 
 void setup() {
-  pinMode(trigPin1, OUTPUT);
-  pinMode(echoPin1, INPUT);
-  pinMode(trigPin2, OUTPUT);
-  pinMode(echoPin2, INPUT);
-  pinMode(speakerPin, OUTPUT);
-  Serial.begin(9600);
-  while (!Serial);
-  Serial.println("Started");
+    Serial.begin(9600);
+    while (!Serial);
+    Serial.println("Started");
 
-  // Initialize IMU
-  if (!IMU.begin()) {
-    Serial.println("Failed to initialize IMU!");
-    while (1);
-  }
-
-  // Gyroscope calibration (bias removal)
-  float x, y, z;
-  int samples = 0;          // Initialize samples counter properly
-  while (samples < 1000) {
-    if (IMU.gyroscopeAvailable()) {
-      IMU.readGyroscope(x, y, z);
-      gyroBias += x;
-      samples++;
+    if (!IMU.begin()) {
+        Serial.println("Failed to initialize IMU!");
+        while (1);
     }
-    //delay(2);
-  }
-  gyroBias /= samples;
 
-  // Set motor pins as outputs
-  pinMode(Ain1, OUTPUT);
-  pinMode(Ain2, OUTPUT);
-  pinMode(Bin1, OUTPUT);
-  pinMode(Bin2, OUTPUT);
-
-  prevTime = micros();
-}
-
-void loop() {
-  currentTime = micros();
-  dt = (currentTime - prevTime) / 1E6;  // Time step in seconds
-  prevTime = currentTime;
-
-  // IMU Data
-  float ax, ay, az, gx, gy, gz;
-  if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
-    IMU.readAcceleration(ax, ay, az);
-    IMU.readGyroscope(gx, gy, gz);
-  } else {
-    Serial.println("IMU error");
-    delay(100);
-    return;
-  }
-
-  // Tilt Calculation
-  gx -= gyroBias;
-  gyroChange = gx * dt;
-  gyroAngle += gyroChange;
-
-  accelAngle = -atan2(ay, az) * (180.0 / PI);
-  filteredAngle = Kw * (filteredAngle + gyroChange) + (1 - Kw) * accelAngle;
-
-  // PID Control
-  currentError = desiredAngle - filteredAngle;
-
-  proportional = Kp * currentError;
-  integral += currentError * dt;
-
-  // Anti-windup protection
-  integral = constrain(integral, -50.0, 50.0);
-
-  //derivative = (currentError - prevError) / dt;
-  //prevError = currentError;
-
-  derivative = (currentError - prevError) / dt;
-  derivative = 0.8 * derivative + 0.2 * lastDerivative; // Low-pass filter
-  lastDerivative = derivative;
-  prevError = currentError;
-
-  PIDoutput = proportional + (Ki * integral) + (Kd * derivative);
-
-  // Dead Zone Logic
-  const float deadZone = 1.0;  // ±1° dead zone
-
-  if (abs(currentError) < deadZone) {  
-    pwm = 0;  // No movement near balance point
-    driveMotorsSD(0, 0);
-
-  } else {
-    //pwm = 255 - abs(PIDoutput);
-
-    // Drive forward/backward based on error direction
-    if (PIDoutput < 0) {
-      pwm = constrain(abs(PIDoutput - 50), 0, 255);
-      driveMotorsSD(pwm, pwm);   // Forward
-    } else {
-      pwm = constrain(PIDoutput + 50, 0, 255);
-      driveMotorsSD(-pwm, -pwm);  // Backward
+    // Gyroscope Calibration
+    float x, y, z;
+    int samples = 0;
+    while (samples < 1000) {
+        if (IMU.gyroscopeAvailable()) {
+            IMU.readGyroscope(x, y, z);
+            gyroBias += x;
+            samples++;
+        }
     }
-  }
+    gyroBias /= samples;
 
-  // Debugging
-  /*Serial.print("Accel: "); Serial.print(accelAngle);
-  Serial.print(" | Gyro: "); Serial.print(gyroAngle);
-  Serial.print(" | Angle: "); Serial.print(filteredAngle);
-  Serial.print(" | PID: "); Serial.print(PIDoutput);
-  Serial.print(" | PWM: "); Serial.println(pwm);*/
+    pinMode(Ain1, OUTPUT);
+    pinMode(Ain2, OUTPUT);
+    pinMode(Bin1, OUTPUT);
+    pinMode(Bin2, OUTPUT);
+    pinMode(trigPin1, OUTPUT);
+    pinMode(echoPin1, INPUT);
+    pinMode(trigPin2, OUTPUT);
+    pinMode(echoPin2, INPUT);
+    pinMode(speakerPin, OUTPUT);
 
-  //delay(5);
-
-  // Read distances from both sensors
-  distance1 = getDistance(trigPin1, echoPin1);
-  distance2 = getDistance(trigPin2, echoPin2);
-
-  /*Serial.print("Distance1: ");
-  Serial.print(distance1);
-  Serial.print(" cm, Distance2: ");
-  Serial.println(distance2);*/
-  
-  // Determine the closer distance
-  float minDistance = min(distance1, distance2);
-
-  // Map the closer distance to beep interval
-  beepInterval = map((int)minDistance, 5, 100, 100, 1000);
-  beepInterval = constrain(beepInterval, 100, 1000);
-
-  // Check if it's time to beep based on millis()
-  unsigned long currentTime = millis();
-  if (currentTime - previousBeepTime >= beepInterval) {
-    previousBeepTime = currentTime;
-    tone(speakerPin, moduleFrequency, 100); // Beep duration fixed at 100ms
-  }
-
-  //delay(50); // Ensures constant sensor reading rate (~20 readings per second)
-}
-
-// ===== FAST DECAY PWM =====
-void driveMotorsFD(int speedL, int speedR) {
-  // Left Motor
-  if (speedL > 0) {   // Forward (Fast Decay)
-    analogWrite(Ain1, speedL);  
-    analogWrite(Ain2, 0);
-  } else {            // Reverse (Fast Decay)
-    analogWrite(Ain1, 0);
-    analogWrite(Ain2, abs(speedL));
-  }
-  // Right Motor
-  if (speedR > 0) {   // Forward (Fast Decay)
-    analogWrite(Bin1, speedR);  
-    analogWrite(Bin2, 0);
-  } else {            // Reverse (Fast Decay)
-    analogWrite(Bin1, 0);
-    analogWrite(Bin2, abs(speedR));
-  }
-}
-
-// ===== SLOW DECAY PWM =====
-void driveMotorsSD(int speedL, int speedR) {
-  // Left Motor
-  if (speedL > 0) {   // Forward (Slow Decay)
-    analogWrite(Ain1, 1);  
-    analogWrite(Ain2, speedL);
-  } else {            // Reverse (Slow Decay)
-    analogWrite(Ain1, abs(speedL));
-    analogWrite(Ain2, 1);
-  }
-  // Right Motor
-  if (speedR > 0) {   // Forward (Slow Decay)
-    analogWrite(Bin1, 1);  
-    analogWrite(Bin2, speedR);
-  } else {            // Reverse (Slow Decay)
-    analogWrite(Bin1, abs(speedR));
-    analogWrite(Bin2, 1);
-  }
+    prevTime = micros();
 }
 
 float getDistance(int trigPin, int echoPin) {
-  digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(trigPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(trigPin, LOW);
-  
-  float duration = pulseIn(echoPin, HIGH);
-  return (duration * 0.0343) / 2;
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    return (pulseIn(echoPin, HIGH) * 0.0343) / 2;
+}
+
+void loop() {
+    unsigned long currentTime = micros();
+    float dt = (currentTime - prevTime) / 1E6;
+    prevTime = currentTime;
+
+    // Read IMU Data
+    float ax, ay, az, gx, gy, gz;
+    if (IMU.accelerationAvailable() && IMU.gyroscopeAvailable()) {
+        IMU.readAcceleration(ax, ay, az);
+        IMU.readGyroscope(gx, gy, gz);
+    } else {
+        Serial.println("IMU error");
+        return;
+    }
+
+    // Tilt Calculation
+    gx -= gyroBias;
+    float gyroChange = gx * dt;
+    gyroAngle += gyroChange;
+    float accelAngle = -atan2(ay, az) * (180.0 / PI);
+    filteredAngle = Kw * (filteredAngle + gyroChange) + (1 - Kw) * accelAngle;
+
+    // PID Control
+    float currentError = desiredAngle - filteredAngle;
+    float proportional = Kp * currentError;
+    integral += currentError * dt;
+    integral = constrain(integral, -50.0, 50.0);
+    float derivative = (currentError - prevError) / dt;
+    derivative = 0.8 * derivative + 0.2 * lastDerivative;
+    lastDerivative = derivative;
+    prevError = currentError;
+
+    float PIDoutput = proportional + (Ki * integral) + (Kd * derivative);
+    float pwm = (abs(currentError) < 1.0) ? 0 : constrain(abs(PIDoutput), 0, 255);
+    driveMotorsSD(PIDoutput < 0 ? pwm : -pwm, PIDoutput < 0 ? pwm : -pwm);
+
+    // Sonar Distance Reading
+    float distance1 = getDistance(trigPin1, echoPin1);
+    float distance2 = getDistance(trigPin2, echoPin2);
+    float minDistance = min(distance1, distance2);
+    beepInterval = constrain(map((int)minDistance, 5, 100, 100, 1000), 100, 1000);
+
+    if (millis() - previousBeepTime >= beepInterval) {
+        previousBeepTime = millis();
+        tone(speakerPin, moduleFrequency, 100);
+    }
+
+    // Debugging Output
+    Serial.print("Angle: "); Serial.print(filteredAngle);
+    Serial.print(" | PWM: "); Serial.print(pwm);
+    Serial.print(" | Dist1: "); Serial.print(distance1);
+    Serial.print(" | Dist2: "); Serial.println(distance2);
+}
+
+void driveMotorsSD(int speedL, int speedR) {
+    if (speedL > 0) {
+        analogWrite(Ain1, 1);
+        analogWrite(Ain2, speedL);
+    } else {
+        analogWrite(Ain1, abs(speedL));
+        analogWrite(Ain2, 1);
+    }
+
+    if (speedR > 0) {
+        analogWrite(Bin1, 1);
+        analogWrite(Bin2, speedR);
+    } else {
+        analogWrite(Bin1, abs(speedR));
+        analogWrite(Bin2, 1);
+    }
 }
