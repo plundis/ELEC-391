@@ -19,7 +19,7 @@ A robot that balances on two wheels and refuses to fall over. My team and I buil
 
 **Sensing the tilt.** The Arduino's built-in IMU has an accelerometer and a gyroscope. Neither is good enough on its own. The accelerometer is noisy and the gyroscope drifts. A complementary filter blends them (99% gyroscope, 1% accelerometer) into one clean tilt angle. The gyroscope is also calibrated at start-up so the robot doesn't slowly roll away.
 
-**Staying upright.** A PID loop compares the tilt to upright and sets the motor power. If the robot tips past 35 degrees it can't recover, so the code cuts the motors instead of driving them into the floor.
+**Staying upright.** A PID loop compares the tilt to upright and sets the motor power. If the robot tips past 25 degrees it can't recover, so the code cuts the motors instead of driving them into the floor.
 
 **Driving.** To move, the robot shifts its balance point slightly forward or back and lets the controller do the rest. Turning comes from running the two wheels at different speeds.
 

@@ -771,7 +771,7 @@ void balanceControl() {
   
   // Dead Zone Logic
   const float deadZone = 0.0;  // ±1° dead zone
-  const float killZone = 35.0; // Robot can't balance past this point
+  const float killZone = 25.0; // Robot can't balance past this point
   if (abs(currentError) < deadZone) {  
     pwm = 0;  // No movement near balance point
     driveMotorsSD(0, 0);
